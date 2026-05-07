@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Search Cases – MedCase</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">🏥 MedCase</div>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="upload.html">Upload Case</a>
+      <a href="search.html" class="active">Search</a>
+    </div>
+  </nav>
+
+  <section class="container">
+    <h1>Search Clinical Cases</h1>
+    <div class="search-panel">
+      <div class="form-group">
+        <label>Specialty</label>
+        <select id="searchSpecialty">
+          <option value="">All Specialties</option>
+          <option>Radiology</option>
+          <option>Cardiology</option>
+          <option>Neurology</option>
+          <option>Orthopaedics</option>
+          <option>Emergency Medicine</option>
+          <option>Pathology</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="search()">Search</button>
+    </div>
+
+    <div id="searchLoading" style="display:none" class="loading-msg">Searching…</div>
+    <div id="searchResults" class="cases-grid"></div>
+    <div id="searchEmpty"   style="display:none" class="no-results">No results found.</div>
+  </section>
+
+  <script src="config.js"></script>
+  <script>
+    async function search() {
+      const specialty = document.getElementById('searchSpecialty').value;
+      const results   = document.getElementById('searchResults');
+      const loading   = document.getElementById('searchLoading');
+      const empty     = document.getElementById('searchEmpty');
+
+      results.innerHTML = '';
+      loading.style.display = 'block';
+      empty.style.display   = 'none';
+
+      try {
+        let url = `${API_BASE_URL}/api/cases`;
+        if (specialty) url += `?specialty=${encodeURIComponent(specialty)}`;
+
+        const res  = await fetch(url);
+        const data = await res.json();
+        loading.style.display = 'none';
+
+        if (!data.cases || !data.cases.length) {
+          empty.style.display = 'block';
+          return;
+        }
+
+        data.cases.forEach(c => {
+          const card = document.createElement('div');
+          card.className = 'case-card';
+          card.innerHTML = `
+            <div class="case-specialty-tag">${c.specialty}</div>
+            <h3>${c.title}</h3>
+            <p>${c.description ? c.description.substring(0,120) + '…' : ''}</p>
+            <p><strong>Diagnosis:</strong> ${c.diagnosis || 'N/A'}</p>
+            <div class="case-meta">
+              <span>📅 ${new Date(c.uploadDate).toLocaleDateString()}</span>
+            </div>
+          `;
+          results.appendChild(card);
+        });
+      } catch (err) {
+        loading.style.display = 'none';
+        results.innerHTML = `<p class="error-msg">⚠️ Search failed: ${err.message}</p>`;
+      }
+    }
+
+    // Auto-search on load
+    search();
+  </script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "triggers": {
+      "When_a_blob_is_added_or_modified": {
+        "type": "ApiConnection",
+        "inputs": {
+          "host": {
+            "connection": {
+              "name": "@parameters('$connections')['azureblob']['connectionId']"
+            }
+          },
+          "method": "get",
+          "path": "/datasets/default/triggers/batch/onupdatedfile",
+          "queries": {
+            "folderId": "JTJmbWVkaWNhbC1tZWRpYQ==",
+            "maxFileCount": 10
+          }
+        },
+        "recurrence": {
+          "frequency": "Minute",
+          "interval": 1
+        },
+        "splitOn": "@triggerBody()"
+      }
+    },
+    "actions": {
+      "HTTP_Notify_API": {
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "https://medcase-api.azurewebsites.net/api/internal/thumbnail",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "blobName": "@triggerBody()?['Name']",
+            "blobUrl": "@triggerBody()?['Path']",
+            "timestamp": "@utcNow()"
+          }
+        },
+        "runAfter": {}
+      },
+      "Compose_Log": {
+        "type": "Compose",
+        "inputs": {
+          "message": "Thumbnail job triggered for blob: @{triggerBody()?['Name']}",
+          "timestamp": "@utcNow()",
+          "status": "@outputs('HTTP_Notify_API')['statusCode']"
+        },
+        "runAfter": {
+          "HTTP_Notify_API": ["Succeeded", "Failed"]
+        }
+      }
+    },
+    "outputs": {}
+  },
+  "parameters": {
+    "$connections": {
+      "value": {
+        "azureblob": {
+          "connectionId": "/subscriptions/{subscriptionId}/resourceGroups/medcase-rg/providers/Microsoft.Web/connections/azureblob",
+          "connectionName": "azureblob",
+          "id": "/subscriptions/{subscriptionId}/providers/Microsoft.Web/locations/uksouth/managedApis/azureblob"
+        }
+      }
+    }
+  }
+}

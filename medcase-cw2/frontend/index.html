@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MedCase – Medical Case Sharing Platform</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- NAV -->
+  <nav class="navbar">
+    <div class="nav-brand">🏥 MedCase</div>
+    <div class="nav-links">
+      <a href="index.html" class="active">Home</a>
+      <a href="upload.html">Upload Case</a>
+      <a href="search.html">Search</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <h1>Cloud-Based Medical Case Sharing</h1>
+    <p>Upload, share, and review anonymised clinical cases securely on Azure.</p>
+    <a href="upload.html" class="btn btn-primary">Upload a Case</a>
+  </section>
+
+  <!-- SEARCH BAR -->
+  <section class="container">
+    <div class="search-bar">
+      <input type="text" id="specialtyFilter" placeholder="Filter by specialty (e.g. Radiology)…" />
+      <button onclick="loadCases()" class="btn btn-secondary">Filter</button>
+      <button onclick="clearFilter()" class="btn btn-ghost">Clear</button>
+    </div>
+  </section>
+
+  <!-- CASES GRID -->
+  <section class="container">
+    <h2>Clinical Cases</h2>
+    <div id="loading" class="loading-msg">Loading cases…</div>
+    <div id="casesGrid" class="cases-grid"></div>
+    <div id="noResults" class="no-results" style="display:none">No cases found.</div>
+  </section>
+
+  <!-- CASE DETAIL MODAL -->
+  <div id="modal" class="modal-overlay" style="display:none">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    async function loadCases() {
+      const specialty = document.getElementById('specialtyFilter').value.trim();
+      const grid      = document.getElementById('casesGrid');
+      const loading   = document.getElementById('loading');
+      const noResults = document.getElementById('noResults');
+
+      grid.innerHTML = '';
+      loading.style.display = 'block';
+      noResults.style.display = 'none';
+
+      try {
+        let url = `${API_BASE_URL}/api/cases`;
+        if (specialty) url += `?specialty=${encodeURIComponent(specialty)}`;
+
+        const res  = await fetch(url);
+        const data = await res.json();
+        loading.style.display = 'none';
+
+        if (!data.cases || !data.cases.length) {
+          noResults.style.display = 'block';
+          return;
+        }
+
+        data.cases.forEach(c => {
+          const card = document.createElement('div');
+          card.className = 'case-card';
+          card.innerHTML = `
+            <div class="case-specialty-tag">${c.specialty}</div>
+            <h3>${c.title}</h3>
+            <p>${c.description ? c.description.substring(0,120) + '…' : 'No description'}</p>
+            <div class="case-meta">
+              <span>📅 ${new Date(c.uploadDate).toLocaleDateString()}</span>
+              <span>🖼 ${c.mediaUrls ? c.mediaUrls.length : 0} file(s)</span>
+            </div>
+            <button class="btn btn-outline" onclick='showCase(${JSON.stringify(c)})'>View Details →</button>
+          `;
+          grid.appendChild(card);
+        });
+      } catch (err) {
+        loading.style.display = 'none';
+        grid.innerHTML = `<p class="error-msg">⚠️ Could not load cases. Is the API running?<br/><small>${err.message}</small></p>`;
+      }
+    }
+
+    function clearFilter() {
+      document.getElementById('specialtyFilter').value = '';
+      loadCases();
+    }
+
+    function showCase(c) {
+      document.getElementById('modalContent').innerHTML = `
+        <h2>${c.title}</h2>
+        <span class="case-specialty-tag">${c.specialty}</span>
+        <p><strong>Diagnosis:</strong> ${c.diagnosis || 'N/A'}</p>
+        <p><strong>Description:</strong> ${c.description || 'N/A'}</p>
+        <p><strong>Uploaded:</strong> ${new Date(c.uploadDate).toLocaleString()}</p>
+        <p><strong>Anonymised:</strong> ${c.isAnonymised ? '✅ Yes' : '❌ No'}</p>
+        <p><strong>Tags:</strong> ${c.tags && c.tags.length ? c.tags.join(', ') : 'None'}</p>
+        <p><strong>Media files:</strong> ${c.mediaUrls ? c.mediaUrls.length : 0}</p>
+        ${c.mediaUrls && c.mediaUrls.length ? `<div class="media-list">${c.mediaUrls.map(u => `<a href="${u}" target="_blank">📎 View file</a>`).join('')}</div>` : ''}
+        <div class="modal-actions">
+          <button class="btn btn-danger" onclick="deleteCase('${c.id}', '${c.specialty}')">🗑 Delete</button>
+        </div>
+      `;
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('modal').style.display = 'none';
+    }
+
+    async function deleteCase(caseId, specialty) {
+      if (!confirm('Delete this case?')) return;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}`, { method: 'DELETE' });
+        if (res.ok) {
+          closeModal();
+          loadCases();
+        } else {
+          alert('Delete failed');
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    // Load on page open
+    loadCases();
+  </script>
+</body>
+</html>
