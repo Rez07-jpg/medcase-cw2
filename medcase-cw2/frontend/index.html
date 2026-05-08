@@ -5,11 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MedCase – Medical Case Sharing Platform</title>
   <link rel="stylesheet" href="styles.css" />
+  <script src="auth.js"></script>
 </head>
 <body>
-  <!-- NAV -->
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+
   <nav class="navbar">
-    <div class="nav-brand">🏥 MedCase</div>
+    <div class="nav-brand">🏥 Med<span>Case</span></div>
     <div class="nav-links">
       <a href="index.html" class="active">Home</a>
       <a href="upload.html">Upload Case</a>
@@ -17,31 +20,30 @@
     </div>
   </nav>
 
-  <!-- HERO -->
   <section class="hero">
-    <h1>Cloud-Based Medical Case Sharing</h1>
+    <div class="hero-badge"><span class="dot"></span> Azure Cloud Platform</div>
+    <h1>Cloud-Based Medical<br/>Case Sharing</h1>
     <p>Upload, share, and review anonymised clinical cases securely on Azure.</p>
-    <a href="upload.html" class="btn btn-primary">Upload a Case</a>
+    <a href="upload.html" class="btn btn-primary">Upload a Case →</a>
   </section>
 
-  <!-- SEARCH BAR -->
   <section class="container">
     <div class="search-bar">
       <input type="text" id="specialtyFilter" placeholder="Filter by specialty (e.g. Radiology)…" />
       <button onclick="loadCases()" class="btn btn-secondary">Filter</button>
       <button onclick="clearFilter()" class="btn btn-ghost">Clear</button>
     </div>
-  </section>
 
-  <!-- CASES GRID -->
-  <section class="container">
-    <h2>Clinical Cases</h2>
+    <div class="section-heading">
+      <h2>Clinical Cases</h2>
+      <span class="count" id="caseCount">–</span>
+    </div>
+
     <div id="loading" class="loading-msg">Loading cases…</div>
     <div id="casesGrid" class="cases-grid"></div>
     <div id="noResults" class="no-results" style="display:none">No cases found.</div>
   </section>
 
-  <!-- CASE DETAIL MODAL -->
   <div id="modal" class="modal-overlay" style="display:none">
     <div class="modal-box">
       <button class="modal-close" onclick="closeModal()">✕</button>
@@ -56,6 +58,7 @@
       const grid      = document.getElementById('casesGrid');
       const loading   = document.getElementById('loading');
       const noResults = document.getElementById('noResults');
+      const count     = document.getElementById('caseCount');
 
       grid.innerHTML = '';
       loading.style.display = 'block';
@@ -71,9 +74,11 @@
 
         if (!data.cases || !data.cases.length) {
           noResults.style.display = 'block';
+          count.textContent = '0';
           return;
         }
 
+        count.textContent = data.cases.length;
         data.cases.forEach(c => {
           const card = document.createElement('div');
           card.className = 'case-card';
@@ -104,40 +109,97 @@
       document.getElementById('modalContent').innerHTML = `
         <h2>${c.title}</h2>
         <span class="case-specialty-tag">${c.specialty}</span>
+        <br/><br/>
         <p><strong>Diagnosis:</strong> ${c.diagnosis || 'N/A'}</p>
         <p><strong>Description:</strong> ${c.description || 'N/A'}</p>
         <p><strong>Uploaded:</strong> ${new Date(c.uploadDate).toLocaleString()}</p>
         <p><strong>Anonymised:</strong> ${c.isAnonymised ? '✅ Yes' : '❌ No'}</p>
         <p><strong>Tags:</strong> ${c.tags && c.tags.length ? c.tags.join(', ') : 'None'}</p>
         <p><strong>Media files:</strong> ${c.mediaUrls ? c.mediaUrls.length : 0}</p>
-        ${c.mediaUrls && c.mediaUrls.length ? `<div class="media-list">${c.mediaUrls.map(u => `<a href="${u}" target="_blank">📎 View file</a>`).join('')}</div>` : ''}
-        <div class="modal-actions">
-          <button class="btn btn-danger" onclick="deleteCase('${c.id}', '${c.specialty}')">🗑 Delete</button>
+        ${c.mediaUrls && c.mediaUrls.length ? '<div class="media-list">' + c.mediaUrls.map(u=>'<a href="'+u+'" target="_blank">📎 View file</a>').join('') + '</div>' : ''}
+        <div style="display:flex;gap:0.75rem;margin-top:1.5rem;flex-wrap:wrap;">
+          <button class="btn btn-secondary" id="editBtn">✏️ Edit</button>
+          <button class="btn btn-danger" id="deleteBtn">🗑 Delete</button>
         </div>
       `;
+      document.getElementById('editBtn').onclick   = function() { showEditForm(c); };
+      document.getElementById('deleteBtn').onclick  = function() { deleteCase(c.id, c.specialty); };
       document.getElementById('modal').style.display = 'flex';
     }
 
-    function closeModal() {
-      document.getElementById('modal').style.display = 'none';
+    function showEditForm(c) {
+      document.getElementById('modalContent').innerHTML = `
+        <h2 style="margin-bottom:1.25rem;">✏️ Edit Case</h2>
+        <div class="form-group">
+          <label>Case Title *</label>
+          <input type="text" id="editTitle" placeholder="e.g. Chest X-Ray – Pneumonia" />
+        </div>
+        <div class="form-group">
+          <label>Diagnosis</label>
+          <input type="text" id="editDiagnosis" placeholder="e.g. Community-acquired pneumonia" />
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="editDescription" rows="4" placeholder="Brief clinical context (anonymised)…"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Tags (comma-separated)</label>
+          <input type="text" id="editTags" placeholder="chest, infection, adult" />
+        </div>
+        <div id="editStatus"></div>
+        <div style="display:flex;gap:0.75rem;margin-top:1.25rem;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="saveBtn">💾 Save Changes</button>
+          <button class="btn btn-ghost" id="cancelBtn">← Cancel</button>
+        </div>
+      `;
+      document.getElementById('editTitle').value       = c.title || '';
+      document.getElementById('editDiagnosis').value   = c.diagnosis || '';
+      document.getElementById('editDescription').value = c.description || '';
+      document.getElementById('editTags').value        = c.tags ? c.tags.join(', ') : '';
+      document.getElementById('saveBtn').onclick   = function() { saveEdit(c.id); };
+      document.getElementById('cancelBtn').onclick = function() { showCase(c); };
     }
+
+    async function saveEdit(caseId) {
+      const title       = document.getElementById('editTitle').value.trim();
+      const diagnosis   = document.getElementById('editDiagnosis').value.trim();
+      const description = document.getElementById('editDescription').value.trim();
+      const tagsRaw     = document.getElementById('editTags').value.trim();
+      const tags        = tagsRaw ? tagsRaw.split(',').map(t => t.trim()) : [];
+      const statusEl    = document.getElementById('editStatus');
+
+      if (!title) { alert('Title is required'); return; }
+
+      statusEl.innerHTML = '<p style="font-size:0.875rem;color:rgba(255,255,255,0.45);margin-bottom:0.75rem;">⏳ Saving changes…</p>';
+
+      try {
+        const res  = await fetch(`${API_BASE_URL}/api/cases/${caseId}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, diagnosis, description, tags })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          statusEl.innerHTML = '<div class="success-msg" style="margin-bottom:0.75rem;">✅ Case updated successfully!</div>';
+          setTimeout(function() { closeModal(); loadCases(); }, 900);
+        } else {
+          statusEl.innerHTML = '<p class="error-msg" style="margin-bottom:0.75rem;">❌ Update failed: ' + (data.error || 'Unknown error') + '</p>';
+        }
+      } catch (err) {
+        statusEl.innerHTML = '<p class="error-msg" style="margin-bottom:0.75rem;">❌ Error: ' + err.message + '</p>';
+      }
+    }
+
+    function closeModal() { document.getElementById('modal').style.display = 'none'; }
 
     async function deleteCase(caseId, specialty) {
       if (!confirm('Delete this case?')) return;
       try {
         const res = await fetch(`${API_BASE_URL}/api/cases/${caseId}`, { method: 'DELETE' });
-        if (res.ok) {
-          closeModal();
-          loadCases();
-        } else {
-          alert('Delete failed');
-        }
-      } catch (err) {
-        alert('Error: ' + err.message);
-      }
+        if (res.ok) { closeModal(); loadCases(); }
+        else alert('Delete failed');
+      } catch (err) { alert('Error: ' + err.message); }
     }
 
-    // Load on page open
     loadCases();
   </script>
 </body>
